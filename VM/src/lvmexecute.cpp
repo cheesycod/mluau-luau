@@ -16,6 +16,7 @@
 #include "lbytecode.h"
 
 #include <string.h>
+LUAU_FASTFLAG(LuauBigInt)
 
 LUAU_FASTFLAGVARIABLE(LuauDirectFieldGet)
 LUAU_FLAGVERSION(LuauDirectFieldGet, 3)
@@ -1449,10 +1450,17 @@ reentry:
                         // need to invoke metamethods).
                         break;
 
-                    case LUA_TINTEGER:
-                        pc += lvalue(ra) == lvalue(rb) ? LUAU_INSN_D(insn) : 1;
-                        VM_ASSERT_PC(pc);
-                        VM_NEXT();
+                    case LUA_TBIGINT:
+                        if (FFlag::LuauBigInt)
+                        {
+                            pc += ra->value.l == rb->value.l ? LUAU_INSN_D(insn) : 1;
+                            VM_ASSERT_PC(pc);
+                            VM_NEXT();
+                        }
+                        break;
+
+                    case LUA_THEAPBIGINT:
+                        break;
 
                     default:
                         LUAU_ASSERT(!"Unknown value type");
@@ -1582,10 +1590,17 @@ reentry:
                         // need to invoke metamethods).
                         break;
 
-                    case LUA_TINTEGER:
-                        pc += lvalue(ra) != lvalue(rb) ? LUAU_INSN_D(insn) : 1;
-                        VM_ASSERT_PC(pc);
-                        VM_NEXT();
+                    case LUA_TBIGINT:
+                        if (FFlag::LuauBigInt)
+                        {
+                            pc += ra->value.l != rb->value.l ? LUAU_INSN_D(insn) : 1;
+                            VM_ASSERT_PC(pc);
+                            VM_NEXT();
+                        }
+                        break;
+
+                    case LUA_THEAPBIGINT:
+                        break;
 
                     default:
                         LUAU_ASSERT(!"Unknown value type");
@@ -1754,6 +1769,14 @@ reentry:
                     setnvalue(ra, nvalue(rb) + nvalue(rc));
                     VM_NEXT();
                 }
+                else if (ttisbigint(rb) && ttisbigint(rc))
+                {
+                    BigInt bb = bigintvalue(rb);
+                    BigInt bc = bigintvalue(rc);
+                    BigInt res = lua_bigint_add(L, bb, bc);
+                    setbigintvalue(ra, res);
+                    VM_NEXT();
+                }
                 else if (ttisvector(rb) && ttisvector(rc))
                 {
                     const float* vb = vvalue(rb);
@@ -1800,6 +1823,14 @@ reentry:
                     setnvalue(ra, nvalue(rb) - nvalue(rc));
                     VM_NEXT();
                 }
+                else if (ttisbigint(rb) && ttisbigint(rc))
+                {
+                    BigInt bb = bigintvalue(rb);
+                    BigInt bc = bigintvalue(rc);
+                    BigInt res = lua_bigint_sub(L, bb, bc);
+                    setbigintvalue(ra, res);
+                    VM_NEXT();
+                }
                 else if (ttisvector(rb) && ttisvector(rc))
                 {
                     const float* vb = vvalue(rb);
@@ -1844,6 +1875,14 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
                 {
                     setnvalue(ra, nvalue(rb) * nvalue(rc));
+                    VM_NEXT();
+                }
+                else if (ttisbigint(rb) && ttisbigint(rc))
+                {
+                    BigInt bb = bigintvalue(rb);
+                    BigInt bc = bigintvalue(rc);
+                    BigInt res = lua_bigint_mul(L, bb, bc);
+                    setbigintvalue(ra, res);
                     VM_NEXT();
                 }
                 else if (ttisvector(rb) && ttisnumber(rc))
@@ -1905,6 +1944,14 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
                 {
                     setnvalue(ra, nvalue(rb) / nvalue(rc));
+                    VM_NEXT();
+                }
+                else if (ttisbigint(rb) && ttisbigint(rc))
+                {
+                    BigInt bb = bigintvalue(rb);
+                    BigInt bc = bigintvalue(rc);
+                    BigInt res = lua_bigint_div(L, bb, bc);
+                    setbigintvalue(ra, res);
                     VM_NEXT();
                 }
                 else if (ttisvector(rb) && ttisnumber(rc))
@@ -2016,11 +2063,19 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb) && ttisnumber(rc))
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
                 {
                     double nb = nvalue(rb);
                     double nc = nvalue(rc);
                     setnvalue(ra, luai_nummod(nb, nc));
+                    VM_NEXT();
+                }
+                else if (ttisbigint(rb) && ttisbigint(rc))
+                {
+                    BigInt bb = bigintvalue(rb);
+                    BigInt bc = bigintvalue(rc);
+                    BigInt res = lua_bigint_mod(L, bb, bc);
+                    setbigintvalue(ra, res);
                     VM_NEXT();
                 }
                 else

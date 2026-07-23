@@ -21,7 +21,7 @@ const char* const luaT_typenames[] = {
 
     "userdata",
     "number",
-    "integer",
+    "bigint",
     "vector",
 
     "string",
@@ -33,6 +33,7 @@ const char* const luaT_typenames[] = {
     "buffer",
     "class",
     "object",
+    "bigint",
 };
 
 const char* const luaT_eventname[] = {

@@ -53,7 +53,7 @@ typedef struct lua_TValue
 // Macros to test type
 #define ttisnil(o) (ttype(o) == LUA_TNIL)
 #define ttisnumber(o) (ttype(o) == LUA_TNUMBER)
-#define ttisinteger(o) (ttype(o) == LUA_TINTEGER)
+#define ttisbigint(o) (ttype(o) == LUA_TBIGINT || ttype(o) == LUA_THEAPBIGINT)
 #define ttisstring(o) (ttype(o) == LUA_TSTRING)
 #define ttistable(o) (ttype(o) == LUA_TTABLE)
 #define ttisfunction(o) (ttype(o) == LUA_TFUNCTION)
@@ -72,7 +72,7 @@ typedef struct lua_TValue
 #define gcvalue(o) check_exp(iscollectable(o), (o)->value.gc)
 #define pvalue(o) check_exp(ttislightuserdata(o), (o)->value.p)
 #define nvalue(o) check_exp(ttisnumber(o), (o)->value.n)
-#define lvalue(o) check_exp(ttisinteger(o), (o)->value.l)
+#define lvalue(o) check_exp(ttisbigint(o), (o)->value.l)
 #define vvalue(o) check_exp(ttisvector(o), (o)->value.v)
 #define tsvalue(o) check_exp(ttisstring(o), &(o)->value.gc->ts)
 #define uvalue(o) check_exp(ttisuserdata(o), &(o)->value.gc->u)
@@ -113,7 +113,7 @@ typedef struct lua_TValue
     { \
         TValue* i_o = (obj); \
         i_o->value.l = (x); \
-        i_o->tt = LUA_TINTEGER; \
+        i_o->tt = LUA_TBIGINT; \
     }
 
 #if LUA_VECTOR_SIZE == 4
@@ -319,6 +319,62 @@ typedef struct LuauBuffer
     alignas(8) char inline_data[1];
 } Buffer;
 
+typedef struct HeapBigInt
+{
+    CommonHeader;
+    bool isNegative;
+    uint32_t size;
+    uint32_t capacity;
+    uint32_t* digits;
+} HeapBigInt;
+
+typedef struct BigInt
+{
+    int64_t smi;
+    HeapBigInt* heap;
+} BigInt;
+
+BigInt lua_newbigint(int64_t v);
+BigInt lua_bigint_from_heap(HeapBigInt* h);
+bool lua_bigint_eq(BigInt a, BigInt b);
+uint32_t lua_bigint_hash(BigInt b);
+
+BigInt lua_bigint_add(lua_State* L, BigInt a, BigInt b);
+BigInt lua_bigint_sub(lua_State* L, BigInt a, BigInt b);
+BigInt lua_bigint_mul(lua_State* L, BigInt a, BigInt b);
+BigInt lua_bigint_div(lua_State* L, BigInt a, BigInt b);
+BigInt lua_bigint_mod(lua_State* L, BigInt a, BigInt b);
+BigInt lua_bigint_rem(lua_State* L, BigInt a, BigInt b);
+BigInt lua_bigint_neg(lua_State* L, BigInt a);
+BigInt lua_bigint_fromstring(lua_State* L, const char* str);
+void lua_pushbigint_string(lua_State* L, BigInt b);
+
+void lua_freebigint(lua_State* L, HeapBigInt* h, struct lua_Page* page);
+
+inline BigInt bigintvalue(const TValue* o) {
+    if (ttype(o) == LUA_TBIGINT) {
+        BigInt b;
+        b.smi = o->value.l;
+        b.heap = nullptr;
+        return b;
+    } else {
+        BigInt b;
+        b.smi = 0;
+        b.heap = (HeapBigInt*)o->value.gc;
+        return b;
+    }
+}
+
+inline void setbigintvalue(TValue* obj, BigInt b) {
+    if (b.heap) {
+        obj->value.gc = (GCObject*)b.heap;
+        obj->tt = LUA_THEAPBIGINT;
+    } else {
+        obj->value.l = b.smi;
+        obj->tt = LUA_TBIGINT;
+    }
+}
+
 enum FeedbackVectorSlotKind
 {
     CALL_TARGET
@@ -487,6 +543,20 @@ typedef struct LuaNode
     TValue val;
     TKey key;
 } LuaNode;
+
+inline BigInt bigintvalue(const TKey* o) {
+    if (ttype(o) == LUA_TBIGINT) {
+        BigInt b;
+        b.smi = o->value.l;
+        b.heap = nullptr;
+        return b;
+    } else {
+        BigInt b;
+        b.smi = 0;
+        b.heap = (HeapBigInt*)o->value.gc;
+        return b;
+    }
+}
 
 // copy a value into a key
 #define setnodekey(L, node, obj) \
