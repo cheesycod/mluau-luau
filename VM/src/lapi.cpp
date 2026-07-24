@@ -342,7 +342,7 @@ int lua_type(lua_State* L, int idx)
 {
     StkId o = index2addr(L, idx);
     int tt = (o == luaO_nilobject) ? LUA_TNONE : ttype(o);
-    return tt == LUA_THEAPBIGINT ? LUA_TBIGINT : tt;
+    return tt == LUA_THEAPINTEGER ? LUA_TINTEGER : tt;
 }
 
 const char* lua_typename(lua_State* L, int t)
@@ -480,7 +480,7 @@ int lua_toboolean(lua_State* L, int idx)
 int64_t lua_tointeger64(lua_State* L, int idx, int* isinteger)
 {
     const TValue* o = index2addr(L, idx);
-    if (ttype(o) == LUA_TBIGINT)
+    if (ttype(o) == LUA_TINTEGER)
     {
         if (isinteger)
             *isinteger = 1;
@@ -496,11 +496,11 @@ int64_t lua_tointeger64(lua_State* L, int idx, int* isinteger)
 
 
 
-void lua_pushbigint_string(lua_State* L, int idx)
+void lua_pushinteger_string(lua_State* L, int idx)
 {
     const TValue* o = index2addr(L, idx);
-    if (ttisbigint(o)) {
-        lua_pushbigint_string(L, o);
+    if (ttisinteger(o)) {
+        lua_pushinteger_string(L, o);
     } else {
         lua_pushliteral(L, "0");
     }
